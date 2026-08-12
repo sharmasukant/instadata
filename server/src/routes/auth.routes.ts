@@ -64,6 +64,12 @@ function getMetaErrorDetails(error: any) {
   };
 }
 
+function maskToken(token: string | null) {
+  if (!token) return null;
+  if (token.length <= 12) return `${token.slice(0, 4)}...`;
+  return `${token.slice(0, 6)}...${token.slice(-6)}`;
+}
+
 async function fetchMetaPages(userAccessToken: string) {
   const pagesRes = await axios.get('https://graph.facebook.com/v19.0/me/accounts', {
     params: {
@@ -98,7 +104,7 @@ async function fetchMetaPages(userAccessToken: string) {
   }));
 }
 
-function saveMetaPages(
+async function saveMetaPages(
   userAccessToken: string,
   pages: any[],
   overrides: {
@@ -142,9 +148,9 @@ function saveMetaPages(
     instagramAccountId,
   });
 
-  const savedAccounts = pages
-    .map(upsertFacebookPageAccount)
-    .filter(Boolean);
+  const savedAccounts = (await Promise.all(
+    pages.map(page => Promise.resolve(upsertFacebookPageAccount(page)))
+  )).filter(Boolean);
   console.log('[meta-auth] connected facebook pages saved to accounts list', {
     savedCount: savedAccounts.length,
     usernames: savedAccounts.map((account: any) => account.username),
@@ -162,7 +168,55 @@ async function syncMetaConfig(
   } = {}
 ) {
   const pages = await fetchMetaPages(userAccessToken);
-  return saveMetaPages(userAccessToken, pages, overrides);
+  return await saveMetaPages(userAccessToken, pages, overrides);
+}
+
+async function getSyncedMetaConfig() {
+  let config = MetaStore.get();
+
+  const envToken = process.env.META_USER_ACCESS_TOKEN;
+  const envInstagramAccountId = process.env.META_INSTAGRAM_ACCOUNT_ID;
+  const envFacebookPageId = process.env.META_FACEBOOK_PAGE_ID;
+  const envPageAccessToken = process.env.META_PAGE_ACCESS_TOKEN;
+
+  if (
+    envToken
+    && (
+      envToken !== config.userAccessToken
+      || envInstagramAccountId !== config.instagramAccountId
+      || envFacebookPageId !== config.facebookPageId
+      || envPageAccessToken !== config.pageAccessToken
+    )
+  ) {
+    try {
+      console.log('[meta-auth] syncing meta config from META_USER_ACCESS_TOKEN');
+      config = await syncMetaConfig(envToken, {
+        facebookPageId: envFacebookPageId,
+        instagramAccountId: envInstagramAccountId,
+        pageAccessToken: envPageAccessToken,
+      });
+    } catch (error: any) {
+      console.warn('[meta-auth] META_USER_ACCESS_TOKEN sync failed', error.response?.data || error.message);
+    }
+  }
+
+  return config;
+}
+
+function getMetaConfigDebugResponse() {
+  const config = MetaStore.get();
+  const isExpired = !!config.expiresAt && new Date(config.expiresAt).getTime() <= Date.now();
+
+  return {
+    userAccessToken: maskToken(config.userAccessToken),
+    pageAccessToken: maskToken(config.pageAccessToken),
+    instagramAccountId: config.instagramAccountId,
+    facebookPageId: config.facebookPageId,
+    expiresAt: config.expiresAt,
+    hasUserAccessToken: !!config.userAccessToken,
+    hasPageAccessToken: !!config.pageAccessToken,
+    isExpired,
+  };
 }
 
 function upsertFacebookPageAccount(page: any): StoredAccount | null {
@@ -365,33 +419,7 @@ router.post('/facebook/token', async (req, res) => {
 });
 
 router.get('/facebook/status', async (req, res) => {
-  let config = MetaStore.get();
-
-  const envToken = process.env.META_USER_ACCESS_TOKEN;
-  const envInstagramAccountId = process.env.META_INSTAGRAM_ACCOUNT_ID;
-  const envFacebookPageId = process.env.META_FACEBOOK_PAGE_ID;
-  const envPageAccessToken = process.env.META_PAGE_ACCESS_TOKEN;
-
-  if (
-    envToken
-    && (
-      envToken !== config.userAccessToken
-      || envInstagramAccountId !== config.instagramAccountId
-      || envFacebookPageId !== config.facebookPageId
-      || envPageAccessToken !== config.pageAccessToken
-    )
-  ) {
-    try {
-      console.log('[meta-auth] syncing meta config from META_USER_ACCESS_TOKEN');
-      config = await syncMetaConfig(envToken, {
-        facebookPageId: envFacebookPageId,
-        instagramAccountId: envInstagramAccountId,
-        pageAccessToken: envPageAccessToken,
-      });
-    } catch (error: any) {
-      console.warn('[meta-auth] META_USER_ACCESS_TOKEN sync failed', error.response?.data || error.message);
-    }
-  }
+  const config = await getSyncedMetaConfig();
 
   const isExpired = !!config.expiresAt && new Date(config.expiresAt).getTime() <= Date.now();
   const connected = !!config.userAccessToken && !isExpired;
@@ -411,6 +439,14 @@ router.get('/facebook/status', async (req, res) => {
     hasFacebook,
     isExpired,
   });
+});
+
+router.get('/facebook/config', async (req, res) => {
+  await getSyncedMetaConfig();
+  const config = getMetaConfigDebugResponse();
+
+  console.log('[meta-auth] config requested', config);
+  res.json(config);
 });
 
 export default router;
