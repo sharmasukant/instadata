@@ -13,8 +13,21 @@ export class FacebookProvider implements SocialProvider {
   }
 
   extractUsername(url: string): string {
-    const match = url.match(/(?:facebook\.com|fb\.com)\/([^/?]+)/);
-    return match ? (match[1] || '') : '';
+    const match = url.match(/(?:facebook\.com|fb\.com)\/([^/?#]+)/);
+    const slug = match ? (match[1] || '') : '';
+
+    if (slug === 'share' || slug === 'sharer' || slug === 'story.php') {
+      throw new Error(
+        'Facebook share links are not supported by Meta Graph API. Please paste the actual Facebook Page URL or Page username/ID, for example https://www.facebook.com/page.username'
+      );
+    }
+
+    if (slug === 'profile.php') {
+      const id = new URL(url).searchParams.get('id');
+      return id || '';
+    }
+
+    return slug;
   }
 
   async fetchAnalytics(username: string, profileUrl: string): Promise<UnifiedAnalytics> {
@@ -32,7 +45,7 @@ export class FacebookProvider implements SocialProvider {
       const response = await axios.get(url, {
         params: {
           fields,
-          access_token: config.userAccessToken
+          access_token: config.pageAccessToken || config.userAccessToken
         }
       });
 
@@ -65,6 +78,12 @@ export class FacebookProvider implements SocialProvider {
 
     } catch (error: any) {
       const msg = error.response?.data?.error?.message || error.message;
+      const code = error.response?.data?.error?.code;
+      if (msg === 'An unknown error has occurred' || code === 1) {
+        throw new Error(
+          'Facebook Graph API Error: This Facebook URL could not be resolved by Meta. Use the actual Facebook Page URL or Page username/ID, not a share link. Example: https://www.facebook.com/page.username'
+        );
+      }
       throw new Error(`Facebook Graph API Error: ${msg}`);
     }
   }
