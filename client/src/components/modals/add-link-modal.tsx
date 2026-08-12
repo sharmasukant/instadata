@@ -82,6 +82,7 @@ export function AddLinkModal({ children }: { children?: React.ReactNode }) {
 
   // Determine if this platform requires Meta auth and if we are authenticated
   const isMetaPlatform = selectedPlatform === 'instagram' || selectedPlatform === 'facebook';
+  const isInstagramPlatform = selectedPlatform === 'instagram';
   const needsMetaAuth =
     selectedPlatform === 'instagram'
       ? !authStatus?.connected || !authStatus?.hasInstagram
@@ -110,7 +111,7 @@ export function AddLinkModal({ children }: { children?: React.ReactNode }) {
             {selectedPlatform && !needsMetaAuth
               ? `Enter the URL or username for the ${platformConfig?.name} profile.`
               : selectedPlatform && needsMetaAuth 
-              ? `Facebook verification is required to fetch data from ${platformConfig?.name}.`
+              ? `${isInstagramPlatform ? 'Instagram uses Meta/Facebook verification' : 'Facebook verification is required'} to fetch data from ${platformConfig?.name}.`
               : "Choose the social media platform you want to track."}
           </DialogDescription>
         </DialogHeader>
@@ -136,9 +137,13 @@ export function AddLinkModal({ children }: { children?: React.ReactNode }) {
         ) : needsMetaAuth ? (
            <div className="space-y-4 py-4">
             <div className="p-4 rounded-xl border border-border/50 bg-blue-500/10 text-center">
-              <h4 className="font-semibold mb-2">Facebook Verification Required</h4>
+              <h4 className="font-semibold mb-2">
+                {isInstagramPlatform ? "Connect Instagram via Facebook" : "Facebook Verification Required"}
+              </h4>
               <p className="text-sm text-muted-foreground mb-6">
-                To fetch data for {platformConfig?.name}, connect Facebook and allow the linked Instagram Business account permissions.
+                {isInstagramPlatform
+                  ? "Instagram Business data is approved through Meta's Facebook Login for Business flow."
+                  : `To fetch data for ${platformConfig?.name}, connect Facebook and allow the required permissions.`}
               </p>
               
               <Button 
@@ -149,7 +154,7 @@ export function AddLinkModal({ children }: { children?: React.ReactNode }) {
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
                   <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
                 </svg>
-                Connect with Facebook
+                {isInstagramPlatform ? "Continue with Facebook" : "Connect with Facebook"}
               </Button>
             </div>
 

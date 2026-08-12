@@ -6,7 +6,8 @@ import type { StoredAccount } from '../types/analytics.types.js';
 
 const router = Router();
 
-const REDIRECT_URI = 'http://localhost:4000/api/auth/facebook/callback';
+const REDIRECT_URI = process.env.META_REDIRECT_URI
+  || `${process.env.PUBLIC_BACKEND_URL || 'http://localhost:4000'}/api/auth/facebook/callback`;
 const PAGE_FIELDS = [
   'id',
   'name',

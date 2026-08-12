@@ -1,7 +1,9 @@
 import axios from 'axios';
 import { Platform } from './platforms';
 
-export const API_URL = import.meta.env.VITE_API_URL || '/api';
+export const API_URL = import.meta.env.VITE_API_URL || (
+  import.meta.env.PROD ? 'https://instadata-d0v9.onrender.com/api' : '/api'
+);
 
 export const apiClient = axios.create({
   baseURL: API_URL,
