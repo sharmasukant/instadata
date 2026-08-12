@@ -37,6 +37,7 @@ export class MetaStore {
       const parsed = JSON.parse(data) as Partial<MetaConfig>;
       return { ...DEFAULT_CONFIG, ...parsed };
     } catch {
+      fs.writeFileSync(CONFIG_FILE, JSON.stringify(DEFAULT_CONFIG, null, 2), 'utf-8');
       return DEFAULT_CONFIG;
     }
   }

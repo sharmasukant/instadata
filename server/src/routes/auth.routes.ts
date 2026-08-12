@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type Request } from 'express';
 import axios from 'axios';
 import { MetaStore } from '../utils/meta-store.js';
 import { generateId, readAccounts, writeAccounts } from '../storage/json-store.js';
@@ -6,8 +6,7 @@ import type { StoredAccount } from '../types/analytics.types.js';
 
 const router = Router();
 
-const REDIRECT_URI = process.env.META_REDIRECT_URI
-  || `${process.env.PUBLIC_BACKEND_URL || 'http://localhost:4000'}/api/auth/facebook/callback`;
+const CALLBACK_PATH = '/api/auth/facebook/callback';
 const PAGE_FIELDS = [
   'id',
   'name',
@@ -34,6 +33,35 @@ function sanitizePageForLog(page: any) {
 
 function getInstagramAccount(page: any) {
   return page?.instagram_business_account || page?.connected_instagram_account || null;
+}
+
+function getRedirectUri(req: Request) {
+  if (process.env.META_REDIRECT_URI) {
+    return process.env.META_REDIRECT_URI;
+  }
+
+  if (process.env.PUBLIC_BACKEND_URL) {
+    return `${process.env.PUBLIC_BACKEND_URL.replace(/\/$/, '')}${CALLBACK_PATH}`;
+  }
+
+  const forwardedProto = req.get('x-forwarded-proto')?.split(',')[0]?.trim();
+  const forwardedHost = req.get('x-forwarded-host')?.split(',')[0]?.trim();
+  const protocol = forwardedProto || req.protocol;
+  const host = forwardedHost || req.get('host');
+
+  return `${protocol}://${host}${CALLBACK_PATH}`;
+}
+
+function getMetaErrorDetails(error: any) {
+  const metaError = error.response?.data?.error;
+  return {
+    message: metaError?.message || error.message || 'Unknown Meta OAuth error',
+    type: metaError?.type,
+    code: metaError?.code,
+    subcode: metaError?.error_subcode,
+    traceId: metaError?.fbtrace_id,
+    status: error.response?.status,
+  };
 }
 
 async function fetchMetaPages(userAccessToken: string) {
@@ -191,6 +219,7 @@ function upsertFacebookPageAccount(page: any): StoredAccount | null {
 router.get('/facebook/login', (req, res) => {
   const APP_ID = process.env.META_APP_ID;
   const LOGIN_CONFIG_ID = process.env.META_LOGIN_CONFIG_ID;
+  const redirectUri = getRedirectUri(req);
   if (!APP_ID) {
     console.error('[meta-auth] login failed: META_APP_ID is not configured');
     return res.status(500).json({ error: 'META_APP_ID is not configured' });
@@ -202,7 +231,7 @@ router.get('/facebook/login', (req, res) => {
 
   const authParams = new URLSearchParams({
     client_id: APP_ID,
-    redirect_uri: REDIRECT_URI,
+    redirect_uri: redirectUri,
     response_type: 'code',
   });
 
@@ -215,7 +244,7 @@ router.get('/facebook/login', (req, res) => {
 
   const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?${authParams.toString()}`;
   console.log('[meta-auth] redirecting to facebook oauth', {
-    redirectUri: REDIRECT_URI,
+    redirectUri,
     loginMode: LOGIN_CONFIG_ID ? 'facebook_login_for_business' : 'scope',
     scopes: LOGIN_CONFIG_ID ? undefined : scopes,
     hasLoginConfigId: !!LOGIN_CONFIG_ID,
@@ -227,6 +256,7 @@ router.get('/facebook/login', (req, res) => {
 router.get('/facebook/callback', async (req, res) => {
   const APP_ID = process.env.META_APP_ID;
   const APP_SECRET = process.env.META_APP_SECRET;
+  const redirectUri = getRedirectUri(req);
   
   const { code } = req.query;
   if (!code) {
@@ -240,7 +270,7 @@ router.get('/facebook/callback', async (req, res) => {
     const tokenRes = await axios.get('https://graph.facebook.com/v19.0/oauth/access_token', {
       params: {
         client_id: APP_ID,
-        redirect_uri: REDIRECT_URI,
+        redirect_uri: redirectUri,
         client_secret: APP_SECRET,
         code,
       }
@@ -279,8 +309,24 @@ router.get('/facebook/callback', async (req, res) => {
       </html>
     `);
   } catch (error: any) {
-    console.error('Meta OAuth Error:', error.response?.data || error.message);
-    res.status(500).send(`Authentication failed: ${error.message}`);
+    const details = getMetaErrorDetails(error);
+    console.error('[meta-auth] oauth failed', {
+      ...details,
+      redirectUri,
+      stage: 'callback',
+    });
+    res.status(500).send(`
+      <html>
+        <body style="font-family: system-ui, sans-serif; padding: 32px; line-height: 1.5;">
+          <h2>Authentication failed</h2>
+          <p>${details.message}</p>
+          <p><strong>Status:</strong> ${details.status || 'unknown'}</p>
+          <p><strong>Code:</strong> ${details.code || 'unknown'}</p>
+          <p><strong>Redirect URI used:</strong> ${redirectUri}</p>
+          <p>Make sure this exact Redirect URI is added in Meta's Valid OAuth Redirect URIs.</p>
+        </body>
+      </html>
+    `);
   }
 });
 
