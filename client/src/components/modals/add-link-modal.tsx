@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { 
   Dialog, 
@@ -20,15 +20,57 @@ import { getPlatformConfig, PLATFORMS } from "@/lib/platforms";
 import { Loader2, Plus, Link as LinkIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { API_URL } from "@/lib/api-client";
+import { toast } from "sonner";
 
 export function AddLinkModal({ children }: { children?: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
   const [url, setUrl] = useState("");
+  const loginPopupRef = useRef<Window | null>(null);
+  const loginPollTimerRef = useRef<number | null>(null);
   
   const addAccount = useAddAccount();
   const queryClient = useQueryClient();
   const { data: authStatus, refetch: refetchAuth } = useMetaAuthStatus();
+
+  const handleMetaAuthComplete = async () => {
+    const result = await refetchAuth();
+    queryClient.invalidateQueries({ queryKey: ACCOUNTS_KEY });
+    queryClient.invalidateQueries({ queryKey: DASHBOARD_SUMMARY_KEY });
+
+    const latestStatus = result.data;
+    const hasAccess =
+      selectedPlatform === 'instagram'
+        ? !!latestStatus?.hasInstagram
+        : selectedPlatform === 'facebook'
+          ? !!latestStatus?.hasFacebook
+          : !!latestStatus?.connected;
+
+    if (hasAccess) {
+      toast.success("Meta authentication connected. Add the profile URL now.");
+    } else if (latestStatus?.connected) {
+      toast.warning("Meta connected, but Instagram Business access is still missing.");
+    } else {
+      toast.error("Meta authentication did not complete. Please try again.");
+    }
+  };
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type !== 'META_AUTH_SUCCESS') return;
+      loginPopupRef.current?.close();
+      handleMetaAuthComplete();
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      if (loginPollTimerRef.current) {
+        window.clearInterval(loginPollTimerRef.current);
+      }
+    };
+  }, [selectedPlatform]);
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
@@ -66,14 +108,20 @@ export function AddLinkModal({ children }: { children?: React.ReactNode }) {
       'meta-login', 
       `width=${width},height=${height},left=${left},top=${top}`
     );
+    loginPopupRef.current = popup;
 
     // Poll to see if popup closed to refetch status
-    const timer = setInterval(() => {
+    if (loginPollTimerRef.current) {
+      window.clearInterval(loginPollTimerRef.current);
+    }
+
+    loginPollTimerRef.current = window.setInterval(() => {
       if (popup?.closed) {
-        clearInterval(timer);
-        refetchAuth();
-        queryClient.invalidateQueries({ queryKey: ACCOUNTS_KEY });
-        queryClient.invalidateQueries({ queryKey: DASHBOARD_SUMMARY_KEY });
+        if (loginPollTimerRef.current) {
+          window.clearInterval(loginPollTimerRef.current);
+          loginPollTimerRef.current = null;
+        }
+        handleMetaAuthComplete();
       }
     }, 1000);
   };
