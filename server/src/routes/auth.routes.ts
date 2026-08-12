@@ -1,12 +1,6 @@
 import { Router, type Request } from "express";
 import axios from "axios";
 import { MetaStore } from "../utils/meta-store.js";
-import {
-  generateId,
-  readAccounts,
-  writeAccounts,
-} from "../storage/json-store.js";
-import type { StoredAccount } from "../types/analytics.types.js";
 
 const router = Router();
 
@@ -178,14 +172,9 @@ async function saveMetaPages(
     instagramAccountId,
   });
 
-  const savedAccounts = (
-    await Promise.all(
-      pages.map((page) => Promise.resolve(upsertFacebookPageAccount(page))),
-    )
-  ).filter(Boolean);
-  console.log("[meta-auth] connected facebook pages saved to accounts list", {
-    savedCount: savedAccounts.length,
-    usernames: savedAccounts.map((account: any) => account.username),
+  console.log("[meta-auth] connected pages stored for auth only", {
+    accountWriteSkipped: true,
+    reason: "Accounts are only written when the user explicitly adds a profile URL.",
   });
 
   return config;
@@ -235,11 +224,37 @@ async function getSyncedMetaConfig() {
     }
   }
 
+  const shouldRefreshFromSavedToken =
+    !!config.userAccessToken &&
+    (!config.facebookPageId || !config.pageAccessToken || !config.instagramAccountId);
+
+  if (shouldRefreshFromSavedToken) {
+    const savedUserAccessToken = config.userAccessToken;
+    if (!savedUserAccessToken) return config;
+
+    try {
+      console.log("[meta-auth] refreshing saved Meta config from current token", {
+        hasFacebookPageId: !!config.facebookPageId,
+        hasPageAccessToken: !!config.pageAccessToken,
+        hasInstagramAccountId: !!config.instagramAccountId,
+      });
+      config = await syncMetaConfig(savedUserAccessToken, {
+        facebookPageId: config.facebookPageId,
+        instagramAccountId: config.instagramAccountId,
+        pageAccessToken: config.pageAccessToken,
+      });
+    } catch (error: any) {
+      console.warn(
+        "[meta-auth] saved Meta config refresh failed",
+        error.response?.data || error.message,
+      );
+    }
+  }
+
   return config;
 }
 
-function getMetaConfigDebugResponse() {
-  const config = MetaStore.get();
+function getMetaConfigDebugResponse(config = MetaStore.get()) {
   const isExpired =
     !!config.expiresAt && new Date(config.expiresAt).getTime() <= Date.now();
 
@@ -253,66 +268,6 @@ function getMetaConfigDebugResponse() {
     hasPageAccessToken: !!config.pageAccessToken,
     isExpired,
   };
-}
-
-function upsertFacebookPageAccount(page: any): StoredAccount | null {
-  if (!page?.id) return null;
-
-  const accounts = readAccounts();
-  const now = new Date().toISOString();
-  const username = page.username || page.id;
-  const existingIndex = accounts.findIndex(
-    (account) =>
-      account.platform === "facebook" && account.username === username,
-  );
-  const existing = existingIndex >= 0 ? accounts[existingIndex] : null;
-
-  const account: StoredAccount = {
-    id: existing?.id || generateId(),
-    profileUrl: `https://www.facebook.com/${username}`,
-    platform: "facebook",
-    username,
-    analytics: {
-      platform: "facebook",
-      username,
-      displayName: page.name || username,
-      profileImage:
-        page.picture?.data?.url || existing?.analytics.profileImage || "",
-      bio: page.about || existing?.analytics.bio || "",
-      verified: page.verification_status === "blue_verified",
-      followers:
-        page.followers_count ||
-        page.fan_count ||
-        existing?.analytics.followers ||
-        0,
-      following: 0,
-      posts: existing?.analytics.posts || 0,
-      averageLikes: existing?.analytics.averageLikes || 0,
-      averageComments: existing?.analytics.averageComments || 0,
-      engagementRate: existing?.analytics.engagementRate || 0,
-      monthlyViews: existing?.analytics.monthlyViews || 0,
-      monthlyReach: existing?.analytics.monthlyReach || 0,
-      estimatedRevenue: existing?.analytics.estimatedRevenue || {
-        min: 0,
-        max: 0,
-      },
-      country: existing?.analytics.country || "Global",
-      category: existing?.analytics.category || "Page",
-      lastUpdated: now,
-    },
-    favorite: existing?.favorite || false,
-    createdAt: existing?.createdAt || now,
-    updatedAt: now,
-  };
-
-  if (existingIndex >= 0) {
-    accounts[existingIndex] = account;
-  } else {
-    accounts.push(account);
-  }
-
-  writeAccounts(accounts);
-  return account;
 }
 
 router.get("/facebook/login", (req, res) => {
@@ -514,18 +469,48 @@ router.get("/facebook/status", async (req, res) => {
 });
 
 router.get("/facebook/config", async (req, res) => {
-  await getSyncedMetaConfig();
-  const config = getMetaConfigDebugResponse();
+  const syncedConfig = await getSyncedMetaConfig();
+  const config = getMetaConfigDebugResponse(syncedConfig);
 
   console.log("[meta-auth] config requested", config);
   res.json(config);
+});
+
+async function handleFacebookResync(res: Parameters<Parameters<typeof router.get>[1]>[1]) {
+  const config = MetaStore.get();
+
+  if (!config.userAccessToken) {
+    return res.status(401).json({ error: "Meta authentication is not connected." });
+  }
+
+  try {
+    const syncedConfig = await syncMetaConfig(config.userAccessToken);
+    const response = getMetaConfigDebugResponse(syncedConfig);
+    console.log("[meta-auth] manual resync completed", response);
+    res.json(response);
+  } catch (error: any) {
+    console.error("[meta-auth] manual resync failed", error.response?.data || error.message);
+    res.status(400).json({
+      error: error.response?.data?.error?.message || error.message || "Failed to resync Meta config",
+    });
+  }
+}
+
+router.get("/facebook/resync", async (_req, res) => {
+  await handleFacebookResync(res);
+});
+
+router.post("/facebook/resync", async (_req, res) => {
+  await handleFacebookResync(res);
 });
 
 router.get("/facebook/pages", async (req, res) => {
   const config = await getSyncedMetaConfig();
 
   if (!config.userAccessToken) {
-    return res.status(401).json({ error: "Meta authentication is not connected." });
+    return res
+      .status(401)
+      .json({ error: "Meta authentication is not connected." });
   }
 
   try {
@@ -553,9 +538,15 @@ router.get("/facebook/pages", async (req, res) => {
       pages: safePages,
     });
   } catch (error: any) {
-    console.error("[meta-auth] pages debug fetch failed", error.response?.data || error.message);
+    console.error(
+      "[meta-auth] pages debug fetch failed",
+      error.response?.data || error.message,
+    );
     res.status(400).json({
-      error: error.response?.data?.error?.message || error.message || "Failed to fetch Meta pages",
+      error:
+        error.response?.data?.error?.message ||
+        error.message ||
+        "Failed to fetch Meta pages",
     });
   }
 });
