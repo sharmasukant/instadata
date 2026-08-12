@@ -57,7 +57,9 @@ export function AnalyticsCard({ account }: AnalyticsCardProps) {
                   alt={analytics.username} 
                   className="w-12 h-12 rounded-full object-cover border-2 border-background shadow-sm"
                   onError={(e) => {
-                    (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${analytics.displayName}&background=random`;
+                    const image = e.target as HTMLImageElement;
+                    image.onerror = null;
+                    image.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(analytics.displayName || analytics.username)}&background=random`;
                   }}
                 />
               ) : (

@@ -51,13 +51,27 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.get('/api/image-proxy', async (req, res, next) => {
+app.get('/api/image-proxy', async (req, res) => {
   const imageUrl = typeof req.query.url === 'string' ? req.query.url : '';
+
+  const sendFallbackImage = () => {
+    const fallbackSvg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
+        <rect width="96" height="96" rx="48" fill="#1f2937"/>
+        <circle cx="48" cy="36" r="16" fill="#9ca3af"/>
+        <path d="M20 84c4-18 16-28 28-28s24 10 28 28" fill="#9ca3af"/>
+      </svg>
+    `.trim();
+
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.send(fallbackSvg);
+  };
 
   try {
     const parsedUrl = new URL(imageUrl);
     if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-      return res.status(400).json({ error: 'Invalid image URL' });
+      return sendFallbackImage();
     }
 
     console.log('[image-proxy] fetching image', { host: parsedUrl.host });
@@ -67,15 +81,23 @@ app.get('/api/image-proxy', async (req, res, next) => {
     });
 
     const contentType = response.headers['content-type'];
+    if (typeof contentType === 'string' && !contentType.startsWith('image/')) {
+      console.warn('[image-proxy] upstream did not return image content', {
+        url: imageUrl,
+        contentType,
+      });
+      return sendFallbackImage();
+    }
+
     res.setHeader('Content-Type', typeof contentType === 'string' ? contentType : 'image/jpeg');
     res.setHeader('Cache-Control', 'public, max-age=86400');
     res.send(Buffer.from(response.data));
   } catch (error) {
-    console.error('[image-proxy] failed', {
+    console.warn('[image-proxy] failed; returning fallback image', {
       url: imageUrl || 'missing',
       message: error instanceof Error ? error.message : 'Unknown image proxy error',
     });
-    next(error);
+    sendFallbackImage();
   }
 });
 

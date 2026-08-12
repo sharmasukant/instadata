@@ -89,8 +89,14 @@ export function AddLinkModal({ children }: { children?: React.ReactNode }) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!url || !selectedPlatform) return;
+
+    const trimmedUrl = url.trim();
+    const hasDomain = /^https?:\/\//i.test(trimmedUrl) || /\.[a-z]{2,}/i.test(trimmedUrl);
+    const normalizedProfileUrl = hasDomain
+      ? trimmedUrl
+      : `https://${platformConfig?.domain}/${trimmedUrl.replace(/^@+/, '')}`;
     
-    addAccount.mutate(url, {
+    addAccount.mutate(normalizedProfileUrl, {
       onSuccess: () => {
         handleOpenChange(false);
       }
