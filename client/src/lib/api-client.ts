@@ -1,16 +1,64 @@
-import axios from 'axios';
-import { Platform } from './platforms';
+import axios from "axios";
+import { Platform } from "./platforms";
 
-export const API_URL = import.meta.env.VITE_API_URL || (
-  import.meta.env.PROD ? 'https://instadata-d0v9.onrender.com/api' : '/api'
-);
+export const API_URL =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD ? "https://instadata-d0v9.onrender.com/api" : "/api");
+
+export const SESSION_TOKEN_KEY = "instadata-session-token";
+
+export function getSessionToken(): string | null {
+  try {
+    return localStorage.getItem(SESSION_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setSessionToken(token: string | null) {
+  try {
+    if (!token) {
+      localStorage.removeItem(SESSION_TOKEN_KEY);
+      return;
+    }
+
+    localStorage.setItem(SESSION_TOKEN_KEY, token);
+  } catch {
+    // Ignore storage failures in privacy-restricted or ephemeral environments.
+  }
+}
 
 export const apiClient = axios.create({
   baseURL: API_URL,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
+
+apiClient.interceptors.request.use((config) => {
+  const token = getSessionToken();
+
+  if (!token) {
+    return config;
+  }
+
+  config.headers = config.headers ?? {};
+  config.headers.Authorization = `Bearer ${token}`;
+  config.headers["x-session-token"] = token;
+
+  return config;
+});
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      setSessionToken(null);
+    }
+
+    return Promise.reject(error);
+  },
+);
 
 export interface UnifiedAnalytics {
   platform: Platform;
@@ -64,12 +112,12 @@ export interface MetaAuthStatus {
 
 export const accountsApi = {
   addAccount: async (url: string): Promise<StoredAccount> => {
-    const response = await apiClient.post<StoredAccount>('/accounts', { url });
+    const response = await apiClient.post<StoredAccount>("/accounts", { url });
     return response.data;
   },
 
   getAccounts: async (): Promise<StoredAccount[]> => {
-    const response = await apiClient.get<StoredAccount[]>('/accounts');
+    const response = await apiClient.get<StoredAccount[]>("/accounts");
     return response.data;
   },
 
@@ -83,22 +131,28 @@ export const accountsApi = {
   },
 
   refreshAccount: async (id: string): Promise<StoredAccount> => {
-    const response = await apiClient.patch<StoredAccount>(`/accounts/${id}/refresh`);
+    const response = await apiClient.patch<StoredAccount>(
+      `/accounts/${id}/refresh`,
+    );
     return response.data;
   },
 
   toggleFavorite: async (id: string): Promise<StoredAccount> => {
-    const response = await apiClient.patch<StoredAccount>(`/accounts/${id}/favorite`);
+    const response = await apiClient.patch<StoredAccount>(
+      `/accounts/${id}/favorite`,
+    );
     return response.data;
   },
 
   getDashboardSummary: async (): Promise<DashboardSummary> => {
-    const response = await apiClient.get<DashboardSummary>('/dashboard');
+    const response = await apiClient.get<DashboardSummary>("/dashboard");
     return response.data;
   },
 
   getMetaAuthStatus: async (): Promise<MetaAuthStatus> => {
-    const response = await apiClient.get<MetaAuthStatus>('/auth/facebook/status');
+    const response = await apiClient.get<MetaAuthStatus>(
+      "/auth/facebook/status",
+    );
     return response.data;
   },
 };
