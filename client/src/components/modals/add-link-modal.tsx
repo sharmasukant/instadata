@@ -47,19 +47,11 @@ export function AddLinkModal({ children }: { children?: React.ReactNode }) {
           : !!latestStatus?.connected;
 
     if (hasAccess) {
-      toast.success(
-        selectedPlatform === 'instagram'
-          ? "Instagram connected. Add the profile URL now."
-          : "Meta authentication connected. Add the profile URL now."
-      );
+      toast.success("Meta authentication connected. Add the profile URL now.");
     } else if (latestStatus?.connected) {
-      toast.warning(
-        selectedPlatform === 'instagram'
-          ? "Instagram connected, but Business or Creator access is still missing."
-          : "Meta connected, but Instagram Business access is still missing."
-      );
+      toast.warning("Meta connected, but Instagram Business access is still missing.");
     } else {
-      toast.error("Authentication did not complete. Please try again.");
+      toast.error("Meta authentication did not complete. Please try again.");
     }
   };
 
@@ -117,12 +109,8 @@ export function AddLinkModal({ children }: { children?: React.ReactNode }) {
     const left = window.screenX + (window.outerWidth - width) / 2;
     const top = window.screenY + (window.outerHeight - height) / 2;
     
-    const authPath = selectedPlatform === 'instagram'
-      ? '/auth/instagram/login'
-      : '/auth/facebook/login';
-
     const popup = window.open(
-      `${API_URL}${authPath}`, 
+      `${API_URL}/auth/facebook/login`, 
       'meta-login', 
       `width=${width},height=${height},left=${left},top=${top}`
     );
@@ -177,7 +165,7 @@ export function AddLinkModal({ children }: { children?: React.ReactNode }) {
             {selectedPlatform && !needsMetaAuth
               ? `Enter the URL or username for the ${platformConfig?.name} profile.`
               : selectedPlatform && needsMetaAuth 
-              ? `${isInstagramPlatform ? 'Instagram verification is required' : 'Facebook verification is required'} to fetch data from ${platformConfig?.name}.`
+              ? `${isInstagramPlatform ? 'Instagram uses Meta/Facebook verification' : 'Facebook verification is required'} to fetch data from ${platformConfig?.name}.`
               : "Choose the social media platform you want to track."}
           </DialogDescription>
         </DialogHeader>
@@ -204,11 +192,11 @@ export function AddLinkModal({ children }: { children?: React.ReactNode }) {
            <div className="space-y-4 py-4">
             <div className="p-4 rounded-xl border border-border/50 bg-blue-500/10 text-center">
               <h4 className="font-semibold mb-2">
-                {isInstagramPlatform ? "Connect Instagram" : "Facebook Verification Required"}
+                {isInstagramPlatform ? "Connect Instagram via Facebook" : "Facebook Verification Required"}
               </h4>
               <p className="text-sm text-muted-foreground mb-6">
                 {isInstagramPlatform
-                  ? "Connect your Instagram Business or Creator account directly with Instagram Login."
+                  ? "Instagram Business data is approved through Meta's Facebook Login for Business flow."
                   : `To fetch data for ${platformConfig?.name}, connect Facebook and allow the required permissions.`}
               </p>
               
@@ -220,7 +208,7 @@ export function AddLinkModal({ children }: { children?: React.ReactNode }) {
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
                   <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
                 </svg>
-                {isInstagramPlatform ? "Continue with Instagram" : "Connect with Facebook"}
+                {isInstagramPlatform ? "Continue with Facebook" : "Connect with Facebook"}
               </Button>
             </div>
 
@@ -253,8 +241,8 @@ export function AddLinkModal({ children }: { children?: React.ReactNode }) {
                       hasPartialInstagramAuth ? "text-amber-500" : "text-emerald-500"
                     )}>
                       {hasPartialInstagramAuth
-                        ? "Instagram Business data pending"
-                        : isInstagramPlatform ? "Instagram Account Connected" : "Meta Account Connected"}
+                        ? "Meta connected; Instagram Business data pending"
+                        : "Meta Account Connected"}
                     </p>
                   )}
                 </div>

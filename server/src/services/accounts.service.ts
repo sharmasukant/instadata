@@ -1,55 +1,33 @@
-import { ProviderFactory } from "../providers/provider.factory.js";
-import {
-  readAccounts,
-  writeAccounts,
-  generateId,
-} from "../storage/json-store.js";
-import { normalizeUrl } from "../utils/url-parser.js";
-import type {
-  StoredAccount,
-  DashboardSummary,
-  Platform,
-} from "../types/analytics.types.js";
+import { ProviderFactory } from '../providers/provider.factory.js';
+import { readAccounts, writeAccounts, generateId } from '../storage/json-store.js';
+import { normalizeUrl } from '../utils/url-parser.js';
+import type { StoredAccount, DashboardSummary, Platform } from '../types/analytics.types.js';
 
 export class AccountsService {
-  userId?: string;
-
-  constructor(userId?: string) {
-    this.userId = userId;
-  }
-
   async addAccount(rawUrl: string): Promise<StoredAccount> {
     const url = normalizeUrl(rawUrl);
     const provider = ProviderFactory.getProvider(url);
 
     if (!provider) {
-      throw new Error(
-        "Unsupported platform. Supported: Instagram, YouTube, TikTok, Twitter/X, Facebook, LinkedIn, Pinterest, Twitch",
-      );
+      throw new Error('Unsupported platform. Supported: Instagram, YouTube, TikTok, Twitter/X, Facebook, LinkedIn, Pinterest, Twitch');
     }
 
     const username = provider.extractUsername(url);
     if (!username) {
-      throw new Error(
-        "Could not extract username from URL. Please check the URL format.",
-      );
+      throw new Error('Could not extract username from URL. Please check the URL format.');
     }
 
     // Check for duplicates
-    const existing = readAccounts(this.userId);
+    const existing = readAccounts();
     const duplicate = existing.find(
-      (a) =>
-        a.platform === provider.platform &&
-        a.username.toLowerCase() === username.toLowerCase(),
+      a => a.platform === provider.platform && a.username.toLowerCase() === username.toLowerCase()
     );
     if (duplicate) {
-      throw new Error(
-        `Account @${username} on ${provider.platform} is already added.`,
-      );
+      throw new Error(`Account @${username} on ${provider.platform} is already added.`);
     }
 
     const analytics = await provider.fetchAnalytics(username, url);
-    console.log("[accounts] provider analytics response before write", {
+    console.log('[accounts] provider analytics response before write', {
       platform: provider.platform,
       username,
       analytics,
@@ -67,44 +45,41 @@ export class AccountsService {
       updatedAt: now,
     };
 
-    const accounts = readAccounts(this.userId);
+    const accounts = readAccounts();
     accounts.push(account);
-    writeAccounts(accounts, this.userId);
+    writeAccounts(accounts);
 
     return account;
   }
 
   getAccounts(): StoredAccount[] {
-    return readAccounts(this.userId);
+    return readAccounts();
   }
 
   getAccount(id: string): StoredAccount | undefined {
-    return readAccounts(this.userId).find((a) => a.id === id);
+    return readAccounts().find(a => a.id === id);
   }
 
   deleteAccount(id: string): boolean {
-    const accounts = readAccounts(this.userId);
-    const index = accounts.findIndex((a) => a.id === id);
+    const accounts = readAccounts();
+    const index = accounts.findIndex(a => a.id === id);
     if (index === -1) return false;
     accounts.splice(index, 1);
-    writeAccounts(accounts, this.userId);
+    writeAccounts(accounts);
     return true;
   }
 
   async refreshAccount(id: string): Promise<StoredAccount> {
-    const accounts = readAccounts(this.userId);
-    const index = accounts.findIndex((a) => a.id === id);
-    if (index === -1) throw new Error("Account not found");
+    const accounts = readAccounts();
+    const index = accounts.findIndex(a => a.id === id);
+    if (index === -1) throw new Error('Account not found');
 
     const account = accounts[index]!;
     const provider = ProviderFactory.getProvider(account.profileUrl);
-    if (!provider) throw new Error("Provider not found for this account");
+    if (!provider) throw new Error('Provider not found for this account');
 
-    const analytics = await provider.fetchAnalytics(
-      account.username,
-      account.profileUrl,
-    );
-    console.log("[accounts] provider analytics response before refresh write", {
+    const analytics = await provider.fetchAnalytics(account.username, account.profileUrl);
+    console.log('[accounts] provider analytics response before refresh write', {
       id,
       platform: account.platform,
       username: account.username,
@@ -114,22 +89,22 @@ export class AccountsService {
     account.updatedAt = new Date().toISOString();
 
     accounts[index] = account;
-    writeAccounts(accounts, this.userId);
+    writeAccounts(accounts);
 
     return account;
   }
 
   toggleFavorite(id: string): StoredAccount | null {
-    const accounts = readAccounts(this.userId);
-    const account = accounts.find((a) => a.id === id);
+    const accounts = readAccounts();
+    const account = accounts.find(a => a.id === id);
     if (!account) return null;
     account.favorite = !account.favorite;
-    writeAccounts(accounts, this.userId);
+    writeAccounts(accounts);
     return account;
   }
 
   getDashboardSummary(): DashboardSummary {
-    const accounts = readAccounts(this.userId);
+    const accounts = readAccounts();
     const platformBreakdown = {} as Record<Platform, number>;
 
     let totalFollowers = 0;
@@ -159,10 +134,9 @@ export class AccountsService {
       totalFollowing,
       totalPosts,
       totalMonthlyViews,
-      averageEngagement:
-        accounts.length > 0
-          ? parseFloat((totalEngagement / accounts.length).toFixed(2))
-          : 0,
+      averageEngagement: accounts.length > 0
+        ? parseFloat((totalEngagement / accounts.length).toFixed(2))
+        : 0,
       estimatedRevenue: { min: revenueMin, max: revenueMax },
       platformBreakdown,
     };
