@@ -20,36 +20,47 @@ export class InstagramProvider implements SocialProvider {
   async fetchAnalytics(username: string, profileUrl: string): Promise<UnifiedAnalytics> {
     const config = MetaStore.get();
     
-    if (!config.userAccessToken) {
-      throw new Error('Meta authentication required. Please connect your Facebook account in settings.');
+    if (!config.instagramAccessToken || !config.instagramUserId) {
+      throw new Error(
+        'Instagram authentication required. Please connect your Instagram Business or Creator account.'
+      );
     }
 
-    if (!config.instagramAccountId) {
+    if (config.instagramUsername && username.toLowerCase() !== config.instagramUsername.toLowerCase()) {
       throw new Error(
-        'Instagram Business account is not linked to the authenticated Facebook Page. Meta Business Discovery requires your own linked Instagram Business/Creator account before it can fetch other Instagram accounts.'
+        `Direct Instagram Login can only fetch the authenticated account @${config.instagramUsername}. Please connect the Instagram account you want to analyze.`
       );
     }
 
     try {
-      // Query Business Discovery API
-      const url = `https://graph.facebook.com/v19.0/${config.instagramAccountId}`;
-      const fields = `business_discovery.username(${username}){username,website,name,ig_id,id,profile_picture_url,biography,follows_count,followers_count,media_count,media{comments_count,like_count}}`;
+      const url = `https://graph.instagram.com/v23.0/${config.instagramUserId}`;
+      const fields = [
+        'id',
+        'username',
+        'name',
+        'profile_picture_url',
+        'biography',
+        'followers_count',
+        'follows_count',
+        'media_count',
+        'media.limit(25){comments_count,like_count}',
+      ].join(',');
       
       const response = await axios.get(url, {
         params: {
           fields,
-          access_token: config.pageAccessToken || config.userAccessToken
+          access_token: config.instagramAccessToken
         }
       });
 
-      const data = response.data.business_discovery;
+      const data = response.data;
       console.log('[instagram] meta graph raw response received', {
         username,
-        businessDiscovery: data || null,
+        instagramUser: data || null,
       });
       
       if (!data) {
-        throw new Error('Account not found or is not a Business/Creator account.');
+        throw new Error('Account not found or is not an Instagram Business/Creator account.');
       }
 
       // Calculate averages from recent media
