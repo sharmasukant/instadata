@@ -19,7 +19,7 @@ import {
 import { getPlatformConfig, PLATFORMS } from "@/lib/platforms";
 import { Loader2, Plus, Link as LinkIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { API_URL } from "@/lib/api-client";
+import { API_URL, getSessionToken } from "@/lib/api-client";
 import { toast } from "sonner";
 
 export function AddLinkModal({ children }: { children?: React.ReactNode }) {
@@ -121,8 +121,14 @@ export function AddLinkModal({ children }: { children?: React.ReactNode }) {
       ? '/auth/instagram/login'
       : '/auth/facebook/login';
 
+    const sessionToken = getSessionToken();
+    const authUrl = new URL(`${API_URL}${authPath}`, window.location.origin);
+    if (sessionToken) {
+      authUrl.searchParams.set("sessionToken", sessionToken);
+    }
+
     const popup = window.open(
-      `${API_URL}${authPath}`, 
+      authUrl.toString(), 
       'meta-login', 
       `width=${width},height=${height},left=${left},top=${top}`
     );

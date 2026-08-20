@@ -55,6 +55,10 @@ app.use((req, res, next) => {
 });
 app.use(express.json());
 
+app.get("/", (_req, res) => {
+  res.json({ status: "ok", service: "instadata-api" });
+});
+
 // Health check
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });

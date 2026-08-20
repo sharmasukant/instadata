@@ -86,7 +86,9 @@ export function saveSessionToken(userId: string, token: string | null): void {
   const users = readAllUsers();
   const idx = users.findIndex((u) => u.id === userId);
   if (idx === -1) throw new Error("User not found");
-  users[idx].sessionToken = token;
+  const user = users[idx];
+  if (!user) throw new Error("User not found");
+  user.sessionToken = token;
   writeAllUsers(users);
 }
 

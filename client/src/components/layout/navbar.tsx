@@ -1,11 +1,21 @@
-import { Link } from "react-router";
-import { Activity, Moon, Sun } from "lucide-react";
+import { Link, useNavigate } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { Activity, LogOut, Moon, Sun } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
 import { AddLinkModal } from "@/components/modals/add-link-modal";
+import { authApi } from "@/lib/api-client";
 
 export function Navbar() {
   const { theme, setTheme } = useTheme();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const handleLogout = () => {
+    authApi.logout();
+    queryClient.clear();
+    navigate("/auth", { replace: true });
+  };
 
   return (
     <header className="h-[65px] border-b border-border bg-background/80 backdrop-blur-xl sticky top-0 z-50 flex items-center justify-between px-6">
@@ -34,6 +44,15 @@ export function Navbar() {
           ) : (
             <Moon className="w-5 h-5 text-muted-foreground hover:text-foreground transition-colors" />
           )}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleLogout}
+          className="rounded-full"
+          title="Sign out"
+        >
+          <LogOut className="w-5 h-5 text-muted-foreground hover:text-foreground transition-colors" />
         </Button>
       </div>
     </header>

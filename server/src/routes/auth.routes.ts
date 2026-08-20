@@ -108,7 +108,11 @@ function getFrontendUrl() {
 function getBearerTokenFromReq(req: Request) {
   const header = req.get("authorization") || "";
   if (header.startsWith("Bearer ")) return header.slice(7).trim();
-  return req.get("x-session-token") || undefined;
+  const querySessionToken =
+    typeof req.query.sessionToken === "string"
+      ? req.query.sessionToken
+      : undefined;
+  return req.get("x-session-token") || querySessionToken || undefined;
 }
 
 function maskToken(token: string | null) {

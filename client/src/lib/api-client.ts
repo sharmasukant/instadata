@@ -28,6 +28,17 @@ export function setSessionToken(token: string | null) {
   }
 }
 
+export interface AuthUser {
+  id: string;
+  email: string;
+  createdAt?: string;
+}
+
+export interface AuthResponse {
+  user: AuthUser;
+  sessionToken: string;
+}
+
 export const apiClient = axios.create({
   baseURL: API_URL,
   headers: {
@@ -54,6 +65,16 @@ apiClient.interceptors.response.use(
   (error) => {
     if (error?.response?.status === 401) {
       setSessionToken(null);
+
+      if (
+        typeof window !== "undefined" &&
+        window.location.pathname !== "/auth"
+      ) {
+        const returnTo = `${window.location.pathname}${window.location.search}`;
+        window.location.assign(
+          `/auth?returnTo=${encodeURIComponent(returnTo)}`,
+        );
+      }
     }
 
     return Promise.reject(error);
@@ -154,5 +175,34 @@ export const accountsApi = {
       "/auth/facebook/status",
     );
     return response.data;
+  },
+};
+
+export const authApi = {
+  login: async (email: string, password: string): Promise<AuthResponse> => {
+    const response = await apiClient.post<AuthResponse>("/auth/login", {
+      email,
+      password,
+    });
+    setSessionToken(response.data.sessionToken);
+    return response.data;
+  },
+
+  register: async (email: string, password: string): Promise<AuthResponse> => {
+    const response = await apiClient.post<AuthResponse>("/auth/register", {
+      email,
+      password,
+    });
+    setSessionToken(response.data.sessionToken);
+    return response.data;
+  },
+
+  me: async (): Promise<AuthUser> => {
+    const response = await apiClient.get<AuthUser>("/auth/me");
+    return response.data;
+  },
+
+  logout: () => {
+    setSessionToken(null);
   },
 };
