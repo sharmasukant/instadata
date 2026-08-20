@@ -1,10 +1,8 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from "fs";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
+import { join } from "path";
 import type { StoredAccount } from "../types/analytics.types.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = join(__dirname, "../../data");
+const DATA_DIR = join(process.cwd(), "data");
 const DATA_FILE = join(DATA_DIR, "accounts.json");
 
 type AccountsFile = {

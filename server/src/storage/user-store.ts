@@ -1,10 +1,8 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
+import { join } from "path";
 import crypto from "crypto";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = join(__dirname, "../../data");
+const DATA_DIR = join(process.cwd(), "data");
 const DATA_FILE = join(DATA_DIR, "users.json");
 
 export interface UserRecord {
