@@ -4,6 +4,30 @@ import { MetaStore } from '../utils/meta-store.js';
 import axios from 'axios';
 import { extractDomain } from '../utils/url-parser.js';
 
+const FACEBOOK_GRAPH_VERSION = 'v19.0';
+const PAGE_FIELDS =
+  'id,name,username,about,fan_count,followers_count,picture.type(large),verification_status,access_token';
+
+type FacebookPage = {
+  id: string;
+  name?: string;
+  username?: string;
+  about?: string;
+  fan_count?: number;
+  followers_count?: number;
+  picture?: { data?: { url?: string } };
+  verification_status?: string;
+  access_token?: string;
+};
+
+function normalizeLookup(value: string | undefined | null): string {
+  return (value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^@/, '')
+    .replace(/\s+/g, '');
+}
+
 export class FacebookProvider implements SocialProvider {
   platform: Platform = 'facebook';
 
@@ -38,18 +62,39 @@ export class FacebookProvider implements SocialProvider {
     }
 
     try {
-      // For Facebook Pages, we just need to search for the page or get it by id/username
-      const url = `https://graph.facebook.com/v19.0/${username}`;
-      const fields = `id,name,username,about,fan_count,followers_count,picture.type(large),verification_status`;
-      
-      const response = await axios.get(url, {
+      const requested = normalizeLookup(username);
+      const pagesResponse = await axios.get(
+        `https://graph.facebook.com/${FACEBOOK_GRAPH_VERSION}/me/accounts`,
+        {
+          params: {
+            fields: PAGE_FIELDS,
+            access_token: config.userAccessToken,
+          },
+        },
+      );
+      const pages = (pagesResponse.data?.data || []) as FacebookPage[];
+      const selectedPage =
+        pages.find((page) => page.id === username) ||
+        pages.find((page) => normalizeLookup(page.username) === requested) ||
+        pages.find((page) => normalizeLookup(page.name) === requested) ||
+        pages.find((page) => page.id === config.facebookPageId) ||
+        (pages.length === 1 ? pages[0] : undefined);
+
+      if (!selectedPage) {
+        throw new Error(
+          'This Facebook Page was not found in your connected Meta account. Reconnect Facebook and make sure you select the Page you want to add.',
+        );
+      }
+
+      const pageAccessToken = selectedPage.access_token || config.pageAccessToken || config.userAccessToken;
+      const response = await axios.get(`https://graph.facebook.com/${FACEBOOK_GRAPH_VERSION}/${selectedPage.id}`, {
         params: {
-          fields,
-          access_token: config.pageAccessToken || config.userAccessToken
+          fields: PAGE_FIELDS,
+          access_token: pageAccessToken,
         }
       });
 
-      const data = response.data;
+      const data = response.data as FacebookPage;
 
       // Facebook Pages API doesn't give us public post likes easily without Page Access Token
       // So we use follower counts for baseline engagement estimates
@@ -57,7 +102,7 @@ export class FacebookProvider implements SocialProvider {
       
       return {
         platform: this.platform,
-        username: data.username || username,
+        username: data.username || data.id || username,
         displayName: data.name || username,
         profileImage: data.picture?.data?.url || '',
         bio: data.about || '',
