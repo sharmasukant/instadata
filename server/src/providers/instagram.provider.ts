@@ -19,10 +19,15 @@ export class InstagramProvider implements SocialProvider {
 
   async fetchAnalytics(username: string, profileUrl: string, userId?: string): Promise<UnifiedAnalytics> {
     const config = userId ? MetaStore.getForUser(userId) : MetaStore.get();
+    const hasDirectInstagramLogin =
+      !!config.instagramAccessToken && !!config.instagramUserId;
+    const hasFacebookLinkedInstagram =
+      !!config.instagramAccountId &&
+      (!!config.pageAccessToken || !!config.userAccessToken);
     
-    if (!config.instagramAccessToken || !config.instagramUserId) {
+    if (!hasDirectInstagramLogin && !hasFacebookLinkedInstagram) {
       throw new Error(
-        'Instagram authentication required. Please connect your Instagram Business or Creator account.'
+        'Instagram authentication required. Please connect your Instagram Business or Creator account, or connect Facebook with a linked Instagram Page.'
       );
     }
 
@@ -33,7 +38,16 @@ export class InstagramProvider implements SocialProvider {
     }
 
     try {
-      const url = `https://graph.instagram.com/v23.0/${config.instagramUserId}`;
+      const graphBaseUrl = hasDirectInstagramLogin
+        ? 'https://graph.instagram.com/v23.0'
+        : 'https://graph.facebook.com/v19.0';
+      const instagramId = hasDirectInstagramLogin
+        ? config.instagramUserId
+        : config.instagramAccountId;
+      const accessToken = hasDirectInstagramLogin
+        ? config.instagramAccessToken
+        : config.pageAccessToken || config.userAccessToken;
+      const url = `${graphBaseUrl}/${instagramId}`;
       const fields = [
         'id',
         'username',
@@ -49,18 +63,25 @@ export class InstagramProvider implements SocialProvider {
       const response = await axios.get(url, {
         params: {
           fields,
-          access_token: config.instagramAccessToken
+          access_token: accessToken
         }
       });
 
       const data = response.data;
       console.log('[instagram] meta graph raw response received', {
         username,
+        authMode: hasDirectInstagramLogin ? 'instagram_login' : 'facebook_login',
         instagramUser: data || null,
       });
       
       if (!data) {
         throw new Error('Account not found or is not an Instagram Business/Creator account.');
+      }
+
+      if (data.username && username.toLowerCase() !== String(data.username).toLowerCase()) {
+        throw new Error(
+          `The connected Instagram account is @${data.username}. Please add that profile URL, or reconnect with the account you want to analyze.`
+        );
       }
 
       // Calculate averages from recent media
