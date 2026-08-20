@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { accountsApi, StoredAccount, DashboardSummary } from '../lib/api-client';
 import { toast } from 'sonner';
@@ -10,6 +11,56 @@ export function useAccounts() {
     queryKey: ACCOUNTS_KEY,
     queryFn: accountsApi.getAccounts,
   });
+}
+
+export function useAutoRefreshAccounts(accounts: StoredAccount[]) {
+  const queryClient = useQueryClient();
+  const isRefreshingRef = useRef(false);
+  const accountsRef = useRef(accounts);
+
+  useEffect(() => {
+    accountsRef.current = accounts;
+  }, [accounts]);
+
+  useEffect(() => {
+    const refreshSeconds = Number(
+      import.meta.env.VITE_ACCOUNT_AUTO_REFRESH_SECONDS || 60,
+    );
+    if (!Number.isFinite(refreshSeconds) || refreshSeconds <= 0) return;
+
+    const refreshAccounts = async () => {
+      if (isRefreshingRef.current || document.visibilityState !== 'visible') {
+        return;
+      }
+
+      const currentAccounts = accountsRef.current;
+      if (currentAccounts.length === 0) return;
+
+      isRefreshingRef.current = true;
+      try {
+        for (const account of currentAccounts) {
+          try {
+            const updated = await accountsApi.refreshAccount(account.id);
+            queryClient.setQueryData<StoredAccount[]>(ACCOUNTS_KEY, (current) =>
+              current?.map((item) =>
+                item.id === updated.id ? updated : item,
+              ) || [updated],
+            );
+          } catch (error) {
+            console.warn('[accounts] auto refresh failed', {
+              id: account.id,
+              message: error instanceof Error ? error.message : 'Unknown error',
+            });
+          }
+        }
+      } finally {
+        isRefreshingRef.current = false;
+      }
+    };
+
+    const timer = window.setInterval(refreshAccounts, refreshSeconds * 1000);
+    return () => window.clearInterval(timer);
+  }, [queryClient]);
 }
 
 export function useDashboardSummary() {

@@ -1,4 +1,4 @@
-import { useAccounts } from "@/hooks/use-accounts";
+import { useAccounts, useAutoRefreshAccounts } from "@/hooks/use-accounts";
 import { SummaryCard } from "@/components/cards/summary-card";
 import { AnalyticsCard } from "@/components/cards/analytics-card";
 import { SkeletonCard } from "@/components/cards/skeleton-card";
@@ -42,6 +42,8 @@ export function DashboardPage() {
   const { data: accounts, isLoading: isAccountsLoading } = useAccounts();
 
   const accountList = accounts || [];
+  useAutoRefreshAccounts(accountList);
+
   const summary = getDashboardSummary(accountList);
   const estimatedRevenue = summary.estimatedRevenue;
 
