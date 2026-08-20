@@ -38,7 +38,6 @@ export function useAddAccount() {
         if (current.some((account) => account.id === data.id)) return current;
         return [data, ...current];
       });
-      queryClient.invalidateQueries({ queryKey: ACCOUNTS_KEY });
       queryClient.invalidateQueries({ queryKey: DASHBOARD_SUMMARY_KEY });
     },
     onError: (error: any) => {
