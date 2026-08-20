@@ -48,7 +48,7 @@ export class AccountsService {
       );
     }
 
-    const analytics = await provider.fetchAnalytics(username, url);
+    const analytics = await provider.fetchAnalytics(username, url, this.userId);
     console.log("[accounts] provider analytics response before write", {
       platform: provider.platform,
       username,
@@ -103,6 +103,7 @@ export class AccountsService {
     const analytics = await provider.fetchAnalytics(
       account.username,
       account.profileUrl,
+      this.userId,
     );
     console.log("[accounts] provider analytics response before refresh write", {
       id,

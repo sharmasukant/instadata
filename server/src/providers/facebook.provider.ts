@@ -30,8 +30,8 @@ export class FacebookProvider implements SocialProvider {
     return slug;
   }
 
-  async fetchAnalytics(username: string, profileUrl: string): Promise<UnifiedAnalytics> {
-    const config = MetaStore.get();
+  async fetchAnalytics(username: string, profileUrl: string, userId?: string): Promise<UnifiedAnalytics> {
+    const config = userId ? MetaStore.getForUser(userId) : MetaStore.get();
     
     if (!config.userAccessToken) {
       throw new Error('Meta authentication required. Please connect your Facebook account in settings.');

@@ -4,5 +4,9 @@ export interface SocialProvider {
   platform: Platform;
   validateUrl(url: string): boolean;
   extractUsername(url: string): string;
-  fetchAnalytics(username: string, profileUrl: string): Promise<UnifiedAnalytics>;
+  fetchAnalytics(
+    username: string,
+    profileUrl: string,
+    userId?: string,
+  ): Promise<UnifiedAnalytics>;
 }

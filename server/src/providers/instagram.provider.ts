@@ -17,8 +17,8 @@ export class InstagramProvider implements SocialProvider {
     return match ? (match[1] || '') : '';
   }
 
-  async fetchAnalytics(username: string, profileUrl: string): Promise<UnifiedAnalytics> {
-    const config = MetaStore.get();
+  async fetchAnalytics(username: string, profileUrl: string, userId?: string): Promise<UnifiedAnalytics> {
+    const config = userId ? MetaStore.getForUser(userId) : MetaStore.get();
     
     if (!config.instagramAccessToken || !config.instagramUserId) {
       throw new Error(

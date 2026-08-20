@@ -350,7 +350,12 @@ router.get("/facebook/login", (req, res) => {
   }
   const scopes =
     process.env.META_AUTH_SCOPES ||
-    ["pages_show_list", "pages_read_engagement"].join(",");
+    [
+      "pages_show_list",
+      "pages_read_engagement",
+      "instagram_basic",
+      "instagram_manage_insights",
+    ].join(",");
 
   const authParams = new URLSearchParams({
     client_id: APP_ID,
