@@ -1,18 +1,49 @@
-import { useAccounts, useDashboardSummary } from "@/hooks/use-accounts";
+import { useAccounts } from "@/hooks/use-accounts";
 import { SummaryCard } from "@/components/cards/summary-card";
 import { AnalyticsCard } from "@/components/cards/analytics-card";
 import { SkeletonCard } from "@/components/cards/skeleton-card";
 import { EmptyState } from "@/components/common/empty-state";
 import { AddLinkModal } from "@/components/modals/add-link-modal";
 import { Users, Activity, PlaySquare, DollarSign, LayoutDashboard } from "lucide-react";
+import { StoredAccount } from "@/lib/api-client";
+
+function getDashboardSummary(accounts: StoredAccount[]) {
+  const totalFollowers = accounts.reduce(
+    (total, account) => total + (account.analytics.followers || 0),
+    0,
+  );
+  const totalPosts = accounts.reduce(
+    (total, account) => total + (account.analytics.posts || 0),
+    0,
+  );
+  const totalEngagement = accounts.reduce(
+    (total, account) => total + (account.analytics.engagementRate || 0),
+    0,
+  );
+  const revenueMin = accounts.reduce(
+    (total, account) => total + (account.analytics.estimatedRevenue?.min || 0),
+    0,
+  );
+  const revenueMax = accounts.reduce(
+    (total, account) => total + (account.analytics.estimatedRevenue?.max || 0),
+    0,
+  );
+
+  return {
+    totalFollowers,
+    totalPosts,
+    averageEngagement:
+      accounts.length > 0 ? Number((totalEngagement / accounts.length).toFixed(2)) : 0,
+    estimatedRevenue: { min: revenueMin, max: revenueMax },
+  };
+}
 
 export function DashboardPage() {
-  const { data: summary, isLoading: isSummaryLoading } = useDashboardSummary();
   const { data: accounts, isLoading: isAccountsLoading } = useAccounts();
 
-  const isLoading = isSummaryLoading || isAccountsLoading;
-  const estimatedRevenue = summary?.estimatedRevenue || { min: 0, max: 0 };
-  const accountCount = accounts?.length ?? summary?.totalAccounts ?? 0;
+  const accountList = accounts || [];
+  const summary = getDashboardSummary(accountList);
+  const estimatedRevenue = summary.estimatedRevenue;
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -28,7 +59,7 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {!isLoading && accountCount === 0 ? (
+      {!isAccountsLoading && accountList.length === 0 ? (
         <EmptyState
           icon={LayoutDashboard}
           title="No accounts tracked yet"
@@ -40,26 +71,26 @@ export function DashboardPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <SummaryCard
               title="Total Audience"
-              value={isLoading ? "..." : (summary?.totalFollowers || 0).toLocaleString()}
+              value={isAccountsLoading ? "..." : summary.totalFollowers.toLocaleString()}
               icon={Users}
               className="bg-card/40"
             />
             <SummaryCard
               title="Avg. Engagement"
-              value={isLoading ? "..." : `${summary?.averageEngagement || 0}%`}
+              value={isAccountsLoading ? "..." : `${summary.averageEngagement}%`}
               icon={Activity}
               className="bg-card/40"
             />
             <SummaryCard
               title="Content Volume"
-              value={isLoading ? "..." : (summary?.totalPosts || 0).toLocaleString()}
+              value={isAccountsLoading ? "..." : summary.totalPosts.toLocaleString()}
               icon={PlaySquare}
               description="Total posts & videos"
               className="bg-card/40"
             />
             <SummaryCard
               title="Est. Revenue (Min)"
-              value={isLoading ? "..." : `$${estimatedRevenue.min.toLocaleString()}`}
+              value={isAccountsLoading ? "..." : `$${estimatedRevenue.min.toLocaleString()}`}
               icon={DollarSign}
               description="Monthly potential"
               className="bg-card/40"
@@ -72,14 +103,14 @@ export function DashboardPage() {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {isLoading ? (
+              {isAccountsLoading ? (
                 <>
                   <SkeletonCard />
                   <SkeletonCard />
                   <SkeletonCard />
                 </>
               ) : (
-                accounts?.map((account) => (
+                accountList.map((account) => (
                   <AnalyticsCard key={account.id} account={account} />
                 ))
               )}

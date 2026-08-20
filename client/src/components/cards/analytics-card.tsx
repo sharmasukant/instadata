@@ -32,6 +32,24 @@ function getImageSrc(src: string): string {
   return `${API_URL}/image-proxy?url=${encodeURIComponent(src)}`;
 }
 
+function getAvatarFallbackSrc(name: string): string {
+  const initials =
+    name
+      .split(/\s|_/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() || "")
+      .join("") || "ID";
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
+      <rect width="96" height="96" rx="48" fill="#27272a"/>
+      <text x="48" y="56" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#fafafa">${initials}</text>
+    </svg>
+  `.trim();
+
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
 export function AnalyticsCard({ account }: AnalyticsCardProps) {
   const { analytics, platform, id, favorite } = account;
   const estimatedRevenue = analytics.estimatedRevenue || { min: 0, max: 0 };
@@ -59,7 +77,9 @@ export function AnalyticsCard({ account }: AnalyticsCardProps) {
                   onError={(e) => {
                     const image = e.target as HTMLImageElement;
                     image.onerror = null;
-                    image.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(analytics.displayName || analytics.username)}&background=random`;
+                    image.src = getAvatarFallbackSrc(
+                      analytics.displayName || analytics.username,
+                    );
                   }}
                 />
               ) : (

@@ -66,6 +66,7 @@ app.get("/api/health", (_req, res) => {
 
 app.get("/api/image-proxy", async (req, res) => {
   const imageUrl = typeof req.query.url === "string" ? req.query.url : "";
+  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
 
   const sendFallbackImage = () => {
     const fallbackSvg = `
