@@ -33,6 +33,11 @@ export function useAddAccount() {
     mutationFn: (url: string) => accountsApi.addAccount(url),
     onSuccess: (data) => {
       toast.success(`Successfully added @${data.username} from ${data.platform}`);
+      queryClient.setQueryData<StoredAccount[]>(ACCOUNTS_KEY, (current) => {
+        if (!current) return [data];
+        if (current.some((account) => account.id === data.id)) return current;
+        return [data, ...current];
+      });
       queryClient.invalidateQueries({ queryKey: ACCOUNTS_KEY });
       queryClient.invalidateQueries({ queryKey: DASHBOARD_SUMMARY_KEY });
     },

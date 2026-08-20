@@ -12,6 +12,7 @@ export function DashboardPage() {
 
   const isLoading = isSummaryLoading || isAccountsLoading;
   const estimatedRevenue = summary?.estimatedRevenue || { min: 0, max: 0 };
+  const accountCount = accounts?.length ?? summary?.totalAccounts ?? 0;
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -27,7 +28,7 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {!isLoading && summary && summary.totalAccounts === 0 ? (
+      {!isLoading && accountCount === 0 ? (
         <EmptyState
           icon={LayoutDashboard}
           title="No accounts tracked yet"
@@ -67,7 +68,7 @@ export function DashboardPage() {
 
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold tracking-tight">Top Accounts</h2>
+              <h2 className="text-xl font-semibold tracking-tight">Connected Accounts</h2>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -78,7 +79,7 @@ export function DashboardPage() {
                   <SkeletonCard />
                 </>
               ) : (
-                accounts?.slice(0, 3).map((account) => (
+                accounts?.map((account) => (
                   <AnalyticsCard key={account.id} account={account} />
                 ))
               )}

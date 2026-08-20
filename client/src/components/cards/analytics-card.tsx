@@ -133,6 +133,14 @@ export function AnalyticsCard({ account }: AnalyticsCardProps) {
             <p className="font-semibold text-xl tracking-tight">{formatNumber(analytics.followers)}</p>
           </div>
           <div className="bg-muted/40 rounded-xl p-3">
+            <p className="text-xs text-muted-foreground mb-1">Following</p>
+            <p className="font-semibold text-xl tracking-tight">{formatNumber(analytics.following)}</p>
+          </div>
+          <div className="bg-muted/40 rounded-xl p-3">
+            <p className="text-xs text-muted-foreground mb-1">Posts</p>
+            <p className="font-semibold text-xl tracking-tight">{formatNumber(analytics.posts)}</p>
+          </div>
+          <div className="bg-muted/40 rounded-xl p-3">
             <p className="text-xs text-muted-foreground mb-1">Engagement</p>
             <div className="flex items-end gap-1.5">
               <p className="font-semibold text-xl tracking-tight text-emerald-500">{analytics.engagementRate || 0}%</p>
